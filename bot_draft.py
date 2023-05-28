@@ -7,7 +7,7 @@ import os
 path = 'C:\\Users\\dr_mc\\Desktop\\Mario Superstar Baseball League\\baseball bot\\teams.db'
 conn = sqlite3.connect(path)
 cursor = conn.cursor()
-TOKEN = ''
+TOKEN = 'MTEwNzY4ODkxODIzNDY5MzczNQ.GubhzN.U2_ZWivrn_lN08z0u885sBq15NUJzQvPu-O4S8'
 intents = discord.Intents.default()
 intents.message_content = True
 
@@ -18,16 +18,38 @@ client = commands.Bot(command_prefix='.', intents=intents)
 
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS teams (
-        id INTEGER PRIMARY KEY,
-        user_id INTEGER,
-        username TEXT,
-        character TEXT
-    )
+        team_id INTEGER PRIMARY KEY,
+        team_name TEXT
+    );
 ''')
+
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS team_members (
+        member_id INEGER primary KEY,
+        team_id INTEGER,
+        character_id TEXT,
+        FOREIGN KEY (team_id) REFERENCES teams (team_id)
+    );
+''')
+
+cursor.execute('''
+    DROP TABLE discord_users;
+''')
+
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS discord_users (
+        user_id INTEGER PRIMARY KEY,
+        discord_username TEXT,
+        team_id INTEGER,
+        FOREIGN KEY (team_id) REFERENCES teams (team_id)
+    );
+''')
+
 cursor.execute('''
     DROP TABLE game_data;
     '''
 )
+
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS game_data (
         game_id TEXT PRIMARY KEY,
@@ -123,234 +145,9 @@ characters = [
     "Paragoomba", "Monty Mole", "King Boo", "Blue Pianta", "Red Pianta", "Yellow Pianta", "Hammer Bro", "Boomerang Bro", "Fire Bro"
 ]
 
-# Dictionary to keep track of drafted characters and their counts
-drafted_characters = {}
-teams = {}
-
 @client.event
 async def on_ready():
     print(f'Logged in as {client.user} and ready {draftStarted}')
-
-# Start draft
-@client.command()
-async def startDraft(ctx):
-    await ctx.send(f'The draft has begun')
-    global draftStarted
-    draftStarted = 1
-    print(f'draftStarted: {draftStarted}')
-
-# End draft
-@client.command()
-async def endDraft(ctx):
-    await ctx.send(f'The draft is complete. Goodluck and happy baseball.')
-    global draftStarted
-    draftStarted = 2
-    print(f'draftStarted: {draftStarted}')
-
-@client.command()
-async def draft(ctx, *, args):
-    author = ctx.author
-    mention = ctx.message.mentions
-    target_user = mention[0] if mention else author
-
-    if draftStarted == 1:
-        characters_to_draft = args.split()
-        if mention:
-            characters_to_draft = [c for c in characters_to_draft if c != mention[0].mention]
-
-        for character in characters_to_draft:
-            print(f'{author} is attempting to draft {character}')
-            if character not in characters:
-                print(f'{character} is not a valid character.')
-                await ctx.send(f'{character} is not a valid character')
-                continue
-            if character not in drafted_characters:
-                drafted_characters[character] = 1
-                teams.setdefault(target_user.id, []).append(character)
-
-                # Insert the drafted character into the database
-                conn = sqlite3.connect('teams.db')
-                cursor = conn.cursor()
-                insert_query = '''
-                INSERT INTO teams (user_id, username, character)
-                VALUES (?, ?, ?)
-                '''
-                cursor.execute(insert_query, (target_user.id, target_user.name, character))
-                conn.commit()
-                conn.close()
-
-                print(f'{author} has successfully drafted {character}. There is ONE {character} left')
-                await ctx.send(f'{author} has successfully drafted {character} onto {target_user.name}\'s team. There is ONE {character} left')
-            elif drafted_characters[character] < 2:
-                drafted_characters[character] += 1
-                teams.setdefault(target_user.id, []).append(character)
-
-                # Insert the drafted character into the database
-                conn = sqlite3.connect('teams.db')
-                cursor = conn.cursor()
-                insert_query = '''
-                INSERT INTO teams (user_id, username, character)
-                VALUES (?, ?, ?)
-                '''
-                cursor.execute(insert_query, (target_user.id, target_user.name, character))
-                conn.commit()
-                conn.close()
-
-                print(f'{author} has successfully drafted {character}. There are ZERO {character}s left')
-                await ctx.send(f'{author} has successfully drafted {character} onto {target_user.name}\'s team. There are ZERO {character}s left')
-            else:
-                print(f'{character} has already been drafted twice.')
-                await ctx.send(f'{character} has already been drafted twice.')
-    elif draftStarted == 0:
-        print(f'Draft has not started yet {draftStarted}')
-        await ctx.send(f'Draft has not started yet.')
-    elif draftStarted == 2:
-        print(f'Draft is completed')
-        await ctx.send(f'The draft is completed.')
-
-@client.command()
-async def undraft(ctx, mention, *, character):
-    author = ctx.author
-    guild = ctx.guild
-
-    # Check if a mentioned user is present
-    if mention:
-        mentioned_user = ctx.message.mentions[0]
-        user_id = mentioned_user.id
-        author_name = mentioned_user.name
-    else:
-        mentioned_user = None
-        user_id = author.id
-        author_name = author.name
-
-    # Check if the character has been drafted by the author or mentioned user
-    if user_id in teams and character in teams[user_id]:
-        conn = sqlite3.connect('teams.db')
-        cursor = conn.cursor()
-
-        # Find the row matching the user_id and character
-        query = 'SELECT rowid FROM teams WHERE user_id = ? AND character = ? LIMIT 1'
-        cursor.execute(query, (user_id, character))
-        row = cursor.fetchone()
-
-        if row:
-            # Delete the row using the retrieved rowid
-            delete_query = 'DELETE FROM teams WHERE rowid = ?'
-            cursor.execute(delete_query, (row[0],))
-            conn.commit()
-            conn.close()
-
-            # Remove one instance of the character from the author's or mentioned user's team in the teams dictionary
-            if mentioned_user:
-                teams[user_id].remove(character)
-            else:
-                teams[author.id].remove(character)
-
-            # Decrement the count of drafted characters in the drafted_characters dictionary
-            drafted_characters[character] -= 1
-
-            # Get the count of available characters for drafting
-            available_count = 2 - drafted_characters.get(character, 0)
-
-            await ctx.send(f'{character} has been undrafted from {author_name}\'s team. '
-                           f'There are {available_count} {character}(s) available for drafting.')
-            return
-
-    await ctx.send(f'{character} has not been drafted by {author_name}.')
-
-
-
-@client.command()
-async def drafted(ctx):
-    print('Displaying drafted characters')
-    output = 'Drafted Characters: \n'
-    for character, count in drafted_characters.items():
-        output += f'{character}: {count}\n'
-
-    await ctx.send(output)
-
-@client.command()
-async def getTeam(ctx, *, character=None):
-    if character is None:
-        await ctx.send("Please provide a character name.")
-        return
-
-    # Convert the character name to lowercase
-    character = character.lower()
-
-    # Check if the lowercase character name is in the characters list
-    if character not in (c.lower() for c in characters):
-        await ctx.send(f"{character} is not a valid character.")
-        return
-
-    # Establish a database connection
-    conn = sqlite3.connect('teams.db')
-    cursor = conn.cursor()
-
-    query = "SELECT username FROM teams WHERE LOWER(character) = ?"
-    cursor.execute(query, (character,))
-    result = cursor.fetchone()
-
-    # Close the database connection
-    conn.close()
-
-    if result:
-        username = result[0]
-        await ctx.send(f'{character.capitalize()} has been drafted by {username}.')
-    else:
-        await ctx.send(f'{character.capitalize()} has not been drafted.')
-
-@client.command()
-async def listUndrafted(ctx):
-    undrafted_characters = [character for character in characters if character not in drafted_characters]
-    if undrafted_characters:
-        output = "Undrafted Characters:\n"
-        line_length = 0
-        line = ""
-
-        for character in undrafted_characters:
-            if line_length + len(character) + 2 <= 100:
-                line += character + ", "
-                line_length += len(character) + 2
-            else:
-                output += line[:-2] + "\n"  # Remove the trailing comma and space
-                line = character + ", "
-                line_length = len(character) + 2
-
-        if line:
-            output += line[:-2] + "\n"  # Remove the trailing comma and space
-
-        await ctx.send(output)
-    else:
-        await ctx.send("All characters have been drafted.")
-
-@client.command()
-async def getUserTeam(ctx, *, username):
-    if ctx.message.mentions:
-        username = ctx.message.mentions[0].name
-
-    # Fetch the drafted characters for the user from the database
-    conn = sqlite3.connect('teams.db')
-    cursor = conn.cursor()
-    query = '''
-    SELECT character FROM teams
-    WHERE username = ?
-    '''
-    cursor.execute(query, (username,))
-    result = cursor.fetchall()
-    conn.close()
-
-    if result:
-        characters = [row[0] for row in result]
-        await ctx.send(f"The team drafted by {username}: {', '.join(characters)}")
-    else:
-        await ctx.send(f"{username} has not drafted any characters.")
-
-client.remove_command('help')
-
-@client.command()
-async def help(ctx):
-    await ctx.send(f'Please only use me in #bot-spam. \nCommands are: \n\t .startDraft to begin a draft. \n\t .draft Character to draft a character. There is capitalization and spelling, Matt was too lazy to sanitize inputs.\n\t .undraft Character to remove a character from a team\n\t Note: characters may be drafted onto other player\'s teams by doing .draft @user Character. This is purely for convenience, don\'t draft characters onto other player\'s teams please.  \n\t .drafted to see what characters have been drafted. \n\t .getTeam Character to see the team a character was drafted onto. \n\t .getUserTeam username to get another perons\'s team. \n\t .listUndrafted to get a list of all undrafted characters \n\t .endDraft to complete the draft')
 
 @client.command()
 async def wipeDatabase(ctx):
@@ -359,13 +156,11 @@ async def wipeDatabase(ctx):
     cursor.execute('DELETE FROM teams;') 
     cursor.execute('DELETE FROM game_data;')
     cursor.execute('DELETE FROM roster_data;')
+    cursor.execute('DELETE FROM team_members;')
+    cursor.execute('DELETE FROM discord_users;')
     conn.commit()
     conn.close()
     await ctx.send('The database has been wiped.')
-
-    # Clear the drafted characters and teams dictionaries
-    drafted_characters.clear()
-    teams.clear()
 
 @client.command()
 async def parseJSON(ctx):
