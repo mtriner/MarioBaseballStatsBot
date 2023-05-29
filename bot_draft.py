@@ -3,11 +3,13 @@ from  discord.ext import commands
 import sqlite3
 import json
 import os
+from dotenv import load_dotenv
 
+load_dotenv()
 path = 'C:\\Users\\dr_mc\\Desktop\\Mario Superstar Baseball League\\baseball bot\\teams.db'
 conn = sqlite3.connect(path)
 cursor = conn.cursor()
-TOKEN = 'MTEwNzY4ODkxODIzNDY5MzczNQ.GubhzN.U2_ZWivrn_lN08z0u885sBq15NUJzQvPu-O4S8'
+TOKEN = os.getenv("BOT_TOKEN")
 intents = discord.Intents.default()
 intents.message_content = True
 
@@ -15,6 +17,10 @@ DRAFTCHANNEL = 725385443834593312
 draftStarted = 0
 
 client = commands.Bot(command_prefix='.', intents=intents)
+
+cursor.execute('''
+    DROP TABLE teams;
+''')
 
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS teams (
@@ -44,6 +50,8 @@ cursor.execute('''
         FOREIGN KEY (team_id) REFERENCES teams (team_id)
     );
 ''')
+
+
 
 cursor.execute('''
     DROP TABLE game_data;
@@ -253,12 +261,12 @@ async def parseJSON(ctx):
 
         if pitches_thrown != 0 and outs_pitched != 0:
             innings_pitched = round(outs_pitched/3, 2)
-            era = round((earned_runs/outs_pitched) * 9, 2)
-            whip = round((batters_walked + batters_hit + hits_allowed)/(outs_pitched/3), 2)
-            hits_per_9 = round((hits_allowed/outs_pitched) * 9, 2)
-            hrs_per_9 = round((hrs_allowed/outs_pitched)  * 9, 2)
-            bb_per_9 = round((batters_walked/outs_pitched) * 9, 2)
-            so_per_9 = round((strikeouts_pitching/outs_pitched) * 9, 2)
+            era = round(earned_runs/(innings_pitched) * 9, 2)
+            whip = round((batters_walked + batters_hit + hits_allowed)/(innings_pitched), 2)
+            hits_per_9 = round((hits_allowed/innings_pitched) * 9, 2)
+            hrs_per_9 = round((hrs_allowed/innings_pitched)  * 9, 2)
+            bb_per_9 = round(((batters_walked + batters_hit)/innings_pitched) * 9, 2)
+            so_per_9 = round((strikeouts_pitching/innings_pitched) * 9, 2)
             if batters_walked or batters_hit != 0:
                 so_bb_ratio = round(strikeouts_pitching/(batters_walked + batters_hit))
         else:
@@ -291,7 +299,7 @@ async def parseJSON(ctx):
         
         # Caculated Offensive Stats
         if at_bats != 0:
-            batting_average = round(hits/at_bats, 2)
+            batting_average = "%.03f" % round(hits/at_bats, 3)
         else:
             batting_average = 0
 
