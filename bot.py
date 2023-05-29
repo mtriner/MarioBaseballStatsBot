@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-path = 'C:\\Users\\dr_mc\\Desktop\\Mario Superstar Baseball League\\baseball bot\\teams.db'
+path = os.getenv("DB_PATH")
 conn = sqlite3.connect(path)
 cursor = conn.cursor()
 TOKEN = os.getenv("BOT_TOKEN")
@@ -17,10 +17,6 @@ DRAFTCHANNEL = 725385443834593312
 draftStarted = 0
 
 client = commands.Bot(command_prefix='.', intents=intents)
-
-cursor.execute('''
-    DROP TABLE teams;
-''')
 
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS teams (
@@ -39,10 +35,6 @@ cursor.execute('''
 ''')
 
 cursor.execute('''
-    DROP TABLE discord_users;
-''')
-
-cursor.execute('''
     CREATE TABLE IF NOT EXISTS discord_users (
         user_id INTEGER PRIMARY KEY,
         discord_username TEXT,
@@ -50,13 +42,6 @@ cursor.execute('''
         FOREIGN KEY (team_id) REFERENCES teams (team_id)
     );
 ''')
-
-
-
-cursor.execute('''
-    DROP TABLE game_data;
-    '''
-)
 
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS game_data (
@@ -74,10 +59,6 @@ cursor.execute('''
     )
 ''')
 
-cursor.execute('''
-    DROP TABLE roster_data;
-    '''
-)
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS roster_data (
     roster_id INTEGER PRIMARY KEY,
@@ -133,8 +114,6 @@ cursor.execute('''
     FOREIGN KEY (game_id) REFERENCES game_data (game_id)
 )
 ''')
-
-
 
 #cursor.execute(table_query)
 
