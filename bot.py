@@ -6,8 +6,8 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-path = os.getenv("DB_PATH")
-conn = sqlite3.connect(path)
+db_path = os.getenv("DB_PATH")
+conn = sqlite3.connect(db_path)
 cursor = conn.cursor()
 TOKEN = os.getenv("BOT_TOKEN")
 intents = discord.Intents.default()
@@ -43,6 +43,8 @@ cursor.execute('''
     );
 ''')
 
+
+
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS game_data (
         game_id TEXT PRIMARY KEY,
@@ -56,7 +58,7 @@ cursor.execute('''
         innings_played INTEGER,
         quitter_team TEXT,
         average_ping INTEGER
-    )
+    );
 ''')
 
 cursor.execute('''
@@ -112,7 +114,7 @@ cursor.execute('''
     so_per_9 REAL,
     so_bb_ratio REAL,
     FOREIGN KEY (game_id) REFERENCES game_data (game_id)
-)
+    );
 ''')
 
 #cursor.execute(table_query)
@@ -138,7 +140,7 @@ async def on_ready():
 
 @client.command()
 async def wipeDatabase(ctx):
-    conn = sqlite3.connect('teams.db')
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute('DELETE FROM teams;') 
     cursor.execute('DELETE FROM game_data;')
@@ -174,7 +176,7 @@ async def parseJSON(ctx):
         await ctx.send(f"Error parsing the JSON file: {str(e)}")
         return
 
-    conn = sqlite3.connect('teams.db')
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
     # Extract game details
@@ -247,7 +249,9 @@ async def parseJSON(ctx):
             bb_per_9 = round(((batters_walked + batters_hit)/innings_pitched) * 9, 2)
             so_per_9 = round((strikeouts_pitching/innings_pitched) * 9, 2)
             if batters_walked or batters_hit != 0:
-                so_bb_ratio = round(strikeouts_pitching/(batters_walked + batters_hit))
+                so_bb_ratio = round(strikeouts_pitching/(batters_walked + batters_hit), 2)
+            else:
+                so_bb_ratio = 0
         else:
             innings_pitched = 0
             era = 0
